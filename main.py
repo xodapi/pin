@@ -874,6 +874,185 @@ def cmd_compare(args):
         traceback.print_exc()
 
 
+def cmd_watchlist(args):
+    """Manage watchlists"""
+    from src.watchlist import get_watchlist_manager
+    
+    manager = get_watchlist_manager()
+    
+    try:
+        if args.action == 'list':
+            # List all watchlists
+            console.print(f"\n[bold blue]Your Watchlists[/bold blue]\n")
+            
+            watchlists = manager.list_watchlists()
+            
+            if not watchlists:
+                console.print("[yellow]No watchlists found[/yellow]")
+                console.print("[dim]Create one: python main.py watchlist create 'My List'[/dim]")
+                return
+            
+            table = Table()
+            table.add_column("ID", style="cyan")
+            table.add_column("Name")
+            table.add_column("Pins", justify="right")
+            table.add_column("Boards", justify="right")
+            table.add_column("Created")
+            
+            for wl in watchlists:
+                table.add_row(
+                    wl['id'],
+                    wl['name'],
+                    str(wl['pins_count']),
+                    str(wl['boards_count']),
+                    str(wl.get('created_at', ''))[:10],
+                )
+            
+            console.print(table)
+        
+        elif args.action == 'create':
+            # Create new watchlist
+            name = args.name
+            if not name:
+                console.print("[red]Please provide a name: watchlist create 'My List'[/red]")
+                return
+            
+            result = manager.create_watchlist(name, args.description or "")
+            console.print(f"[green]Created watchlist:[/green] {result['name']} (id: {result['id']})")
+        
+        elif args.action == 'delete':
+            watchlist_id = args.id
+            if not watchlist_id:
+                console.print("[red]Please provide watchlist ID: watchlist delete my_list[/red]")
+                return
+            
+            if manager.delete_watchlist(watchlist_id):
+                console.print(f"[green]Deleted watchlist: {watchlist_id}[/green]")
+            else:
+                console.print(f"[red]Watchlist not found: {watchlist_id}[/red]")
+        
+        elif args.action == 'add-pin':
+            if not args.id or not args.pin_id:
+                console.print("[red]Usage: watchlist add-pin --id my_list --pin-id 123456[/red]")
+                return
+            
+            result = manager.add_pin(args.id, args.pin_id, args.note or "")
+            if 'error' in result:
+                console.print(f"[red]{result['error']}[/red]")
+            else:
+                console.print(f"[green]Added pin to watchlist ({result['pins_count']} total)[/green]")
+        
+        elif args.action == 'add-board':
+            if not args.id or not args.board_id:
+                console.print("[red]Usage: watchlist add-board --id my_list --board-id 123456[/red]")
+                return
+            
+            result = manager.add_board(args.id, args.board_id, args.note or "")
+            if 'error' in result:
+                console.print(f"[red]{result['error']}[/red]")
+            else:
+                console.print(f"[green]Added board to watchlist ({result['boards_count']} total)[/green]")
+        
+        elif args.action == 'remove-pin':
+            if not args.id or not args.pin_id:
+                console.print("[red]Usage: watchlist remove-pin --id my_list --pin-id 123456[/red]")
+                return
+            
+            result = manager.remove_pin(args.id, args.pin_id)
+            if 'error' in result:
+                console.print(f"[red]{result['error']}[/red]")
+            else:
+                console.print(f"[green]Removed pin from watchlist[/green]")
+        
+        elif args.action == 'remove-board':
+            if not args.id or not args.board_id:
+                console.print("[red]Usage: watchlist remove-board --id my_list --board-id 123456[/red]")
+                return
+            
+            result = manager.remove_board(args.id, args.board_id)
+            if 'error' in result:
+                console.print(f"[red]{result['error']}[/red]")
+            else:
+                console.print(f"[green]Removed board from watchlist[/green]")
+        
+        elif args.action == 'snapshot':
+            if not args.id:
+                console.print("[red]Usage: watchlist snapshot --id my_list[/red]")
+                return
+            
+            result = manager.take_snapshot(args.id)
+            if 'error' in result:
+                console.print(f"[red]{result['error']}[/red]")
+            else:
+                console.print(f"[green]Snapshot saved![/green]")
+                console.print(f"  Pins tracked: {len(result['snapshot']['pins'])}")
+                console.print(f"  Boards tracked: {len(result['snapshot']['boards'])}")
+        
+        elif args.action == 'show':
+            if not args.id:
+                console.print("[red]Usage: watchlist show --id my_list[/red]")
+                return
+            
+            analytics = manager.get_analytics(args.id)
+            if 'error' in analytics:
+                console.print(f"[red]{analytics['error']}[/red]")
+                return
+            
+            console.print(f"\n[bold blue]Watchlist: {analytics['watchlist']['name']}[/bold blue]")
+            if analytics['watchlist'].get('description'):
+                console.print(f"[dim]{analytics['watchlist']['description']}[/dim]")
+            console.print("")
+            
+            # Summary
+            s = analytics['summary']
+            console.print(f"[bold]Summary:[/bold]")
+            console.print(f"  Pins tracked: {s['pins_tracked']}")
+            console.print(f"  Boards tracked: {s['boards_tracked']}")
+            console.print(f"  Total pins in boards: {s['total_pins_in_boards']}")
+            console.print(f"  Total followers: {s['total_followers']}")
+            
+            # Boards
+            if analytics['boards']:
+                console.print(f"\n[bold]Tracked Boards:[/bold]")
+                table = Table()
+                table.add_column("Board")
+                table.add_column("Pins", justify="right")
+                table.add_column("Followers", justify="right")
+                table.add_column("Efficiency", justify="right")
+                table.add_column("Note")
+                
+                for b in analytics['boards']:
+                    change_str = ""
+                    if b['id'] in analytics.get('changes', {}):
+                        ch = analytics['changes'][b['id']]
+                        if ch.get('followers', 0) != 0:
+                            change_str = f" ({ch['followers']:+})"
+                    
+                    table.add_row(
+                        b['name'],
+                        str(b['pin_count']),
+                        f"{b['follower_count']}{change_str}",
+                        str(b['efficiency']),
+                        b.get('note', '')[:20],
+                    )
+                
+                console.print(table)
+            
+            # Pins
+            if analytics['pins']:
+                console.print(f"\n[bold]Tracked Pins:[/bold]")
+                for p in analytics['pins'][:10]:
+                    console.print(f"  • {p['title'] or 'Untitled'}")
+        
+        else:
+            console.print("[yellow]Available actions: list, create, delete, add-pin, add-board, remove-pin, remove-board, snapshot, show[/yellow]")
+    
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+        import traceback
+        traceback.print_exc()
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='Pinterest Analytics CLI',
@@ -1011,6 +1190,20 @@ Examples:
     compare_parser.add_argument('-w', '--weeks', type=int, help='Compare this week vs N weeks ago')
     compare_parser.add_argument('-m', '--months', type=int, help='Compare this month vs N months ago')
     compare_parser.set_defaults(func=cmd_compare)
+    
+    # Watchlist command
+    watchlist_parser = subparsers.add_parser('watchlist', help='Manage custom watchlists')
+    watchlist_parser.add_argument('action', nargs='?', default='list',
+                                   choices=['list', 'create', 'delete', 'add-pin', 'add-board', 
+                                           'remove-pin', 'remove-board', 'snapshot', 'show'],
+                                   help='Action to perform')
+    watchlist_parser.add_argument('name', nargs='?', help='Watchlist name (for create)')
+    watchlist_parser.add_argument('--id', type=str, help='Watchlist ID')
+    watchlist_parser.add_argument('--pin-id', type=str, help='Pin ID')
+    watchlist_parser.add_argument('--board-id', type=str, help='Board ID')
+    watchlist_parser.add_argument('--note', type=str, help='Note for tracked item')
+    watchlist_parser.add_argument('--description', type=str, help='Watchlist description')
+    watchlist_parser.set_defaults(func=cmd_watchlist)
     
     args = parser.parse_args()
     
