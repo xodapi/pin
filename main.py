@@ -658,6 +658,101 @@ def cmd_templates(args):
         console.print(f"[red]Error: {e}[/red]")
 
 
+def cmd_health(args):
+    """Show account health score"""
+    from src.math_analytics import get_math_analytics
+    
+    console.print(f"\n[bold blue]Account Health Report[/bold blue]\n")
+    
+    try:
+        math = get_math_analytics()
+        report = math.generate_health_report()
+        
+        if 'error' in report:
+            console.print(f"[red]{report['error']}[/red]")
+            return
+        
+        # Overall score
+        console.print(f"[bold]Overall Score: {report['overall_score']}/100 ({report['rating']}) {report['emoji']}[/bold]")
+        console.print(f"Grade: [cyan]{report['grade']}[/cyan]\n")
+        
+        # Individual scores
+        console.print("[bold]Component Scores:[/bold]")
+        for metric, score in report['scores'].items():
+            bar = '█' * (score // 10)
+            empty = '░' * (10 - score // 10)
+            color = 'green' if score >= 70 else 'yellow' if score >= 40 else 'red'
+            console.print(f"  {metric.capitalize():12} [{color}]{bar}{empty}[/{color}] {score}/100")
+        
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+
+
+def cmd_math(args):
+    """Show mathematical analytics"""
+    from src.math_analytics import get_math_analytics
+    
+    console.print(f"\n[bold blue]Mathematical Analytics[/bold blue]\n")
+    
+    try:
+        math = get_math_analytics()
+        
+        if args.boards:
+            # Board analysis
+            result = math.analyze_boards_math()
+            
+            if 'error' in result:
+                console.print(f"[red]{result['error']}[/red]")
+                return
+            
+            stats = result['statistics']
+            console.print("[bold]Board Statistics:[/bold]")
+            console.print(f"  Total Boards: {stats['total_boards']}")
+            console.print(f"  Total Pins: {stats['total_pins']:,}")
+            console.print(f"  Avg Pins/Board: {stats['avg_pins_per_board']}")
+            console.print(f"  Avg Efficiency: {stats.get('avg_efficiency', 0)}")
+            console.print(f"  Std Deviation: {stats.get('std_deviation', 0)}")
+            
+            console.print("\n[bold]Top Efficient Boards:[/bold]")
+            for b in result.get('top_efficient', [])[:5]:
+                console.print(f"  [green]★[/green] {b['name']}: {b['efficiency']} ({b['efficiency_rating']})")
+            
+            if result.get('recommendations'):
+                console.print("\n[bold]Recommendations:[/bold]")
+                for rec in result['recommendations']:
+                    console.print(f"  [yellow]>[/yellow] {rec}")
+        
+        elif args.pins:
+            # Pin analysis
+            result = math.analyze_pins_math(days=args.days or 30)
+            
+            if 'error' in result:
+                console.print(f"[red]{result['error']}[/red]")
+                return
+            
+            console.print("[bold]Pin Statistics:[/bold]")
+            console.print(f"  Total Pins: {result['total_pins']:,}")
+            console.print(f"  Recent (last {args.days or 30} days): {result['recent_pins']}")
+            console.print(f"  Posts/Day: {result['posts_per_day']}")
+            console.print(f"  Activity: {result['activity_rating']}")
+            console.print(f"  Trend: {result['trend']} ({result['trend_change_percent']:+}%)")
+            
+            if result.get('best_days'):
+                days_str = ', '.join([d['day'] for d in result['best_days']])
+                console.print(f"  Best Days: {days_str}")
+        
+        else:
+            # Quick health check
+            health = math.generate_health_report()
+            console.print(f"Health Score: {health['overall_score']}/100 ({health['grade']})")
+            console.print("\n[dim]Use --boards or --pins for detailed analysis[/dim]")
+        
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+        import traceback
+        traceback.print_exc()
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='Pinterest Analytics CLI',
@@ -770,6 +865,17 @@ Examples:
     templates_parser = subparsers.add_parser('templates', help='Description templates for SEO')
     templates_parser.add_argument('-a', '--analyze', type=str, help='Analyze description quality')
     templates_parser.set_defaults(func=cmd_templates)
+    
+    # Health command
+    health_parser = subparsers.add_parser('health', help='Account health score (A-F)')
+    health_parser.set_defaults(func=cmd_health)
+    
+    # Math analytics command
+    math_parser = subparsers.add_parser('math', help='Mathematical analytics')
+    math_parser.add_argument('--boards', action='store_true', help='Analyze boards efficiency')
+    math_parser.add_argument('--pins', action='store_true', help='Analyze pins trends')
+    math_parser.add_argument('-d', '--days', type=int, default=30, help='Analysis period in days')
+    math_parser.set_defaults(func=cmd_math)
     
     args = parser.parse_args()
     
