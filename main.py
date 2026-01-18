@@ -577,6 +577,87 @@ def cmd_keywords(args):
         traceback.print_exc()
 
 
+def cmd_links(args):
+    """Check for broken links in pins"""
+    from src.link_checker import get_link_checker
+    
+    console.print(f"\n[bold blue]Link Checker[/bold blue]\n")
+    console.print("[dim]Checking links in your pins...[/dim]\n")
+    
+    try:
+        checker = get_link_checker()
+        result = checker.check_all_links()
+        
+        if 'error' in result:
+            console.print(f"[red]{result['error']}[/red]")
+            return
+        
+        summary = result.get('summary', {})
+        
+        # Stats
+        console.print(f"[bold]Results:[/bold]")
+        console.print(f"  Unique links checked: {result.get('unique_links', 0)}")
+        console.print(f"  [green]Working: {summary.get('working_count', 0)}[/green]")
+        console.print(f"  [red]Broken: {summary.get('broken_count', 0)}[/red]")
+        console.print(f"  [yellow]Redirects: {summary.get('redirect_count', 0)}[/yellow]")
+        console.print(f"  Health Score: {summary.get('health_score', 0)}%")
+        
+        # Broken links
+        if result.get('broken'):
+            console.print(f"\n[bold red]Broken Links:[/bold red]")
+            for item in result['broken'][:10]:
+                console.print(f"  [red]✗[/red] {item['url'][:60]}...")
+                console.print(f"    Error: {item.get('error', 'Unknown')}")
+        
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+
+
+def cmd_templates(args):
+    """Show description templates"""
+    from src.templates import get_description_helper
+    
+    console.print(f"\n[bold blue]Description Templates[/bold blue]\n")
+    
+    try:
+        helper = get_description_helper()
+        
+        if args.analyze:
+            # Analyze a description
+            result = helper.analyze_description(args.analyze)
+            
+            console.print(f"[bold]Analysis:[/bold]")
+            console.print(f"  Score: {result['score']}/100 ({result['rating']})")
+            console.print(f"  Length: {result['length']} chars")
+            console.print(f"  Hashtags: {result['hashtag_count']}")
+            
+            if result['issues']:
+                console.print(f"\n[bold red]Issues:[/bold red]")
+                for issue in result['issues']:
+                    console.print(f"  [red]✗[/red] {issue}")
+            
+            if result['suggestions']:
+                console.print(f"\n[bold yellow]Suggestions:[/bold yellow]")
+                for sug in result['suggestions']:
+                    console.print(f"  [yellow]>[/yellow] {sug}")
+        else:
+            # Show templates
+            templates = helper.get_templates()
+            
+            table = Table(title="Available Templates")
+            table.add_column("Type", style="cyan")
+            table.add_column("Example")
+            
+            for t in templates:
+                table.add_row(t['name'], t['example'][:80] + "...")
+            
+            console.print(table)
+            console.print("\n[dim]Tip: Use --analyze 'your description' to check SEO quality[/dim]")
+        
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='Pinterest Analytics CLI',
@@ -681,6 +762,15 @@ Examples:
     keywords_parser.add_argument('-c', '--check', type=str, help='Check specific keyword')
     keywords_parser.set_defaults(func=cmd_keywords)
     
+    # Links command
+    links_parser = subparsers.add_parser('links', help='Check for broken links')
+    links_parser.set_defaults(func=cmd_links)
+    
+    # Templates command
+    templates_parser = subparsers.add_parser('templates', help='Description templates for SEO')
+    templates_parser.add_argument('-a', '--analyze', type=str, help='Analyze description quality')
+    templates_parser.set_defaults(func=cmd_templates)
+    
     args = parser.parse_args()
     
     if args.command:
@@ -688,8 +778,8 @@ Examples:
     else:
         # Default: show help
         parser.print_help()
-        console.print("\n[dim]Run 'python main.py test' to verify your setup[/dim]")
-        console.print("[dim]Run 'python main.py quick' for a fast status check[/dim]")
+        console.print("\n[dim]First time? Run: python setup.py[/dim]")
+        console.print("[dim]Quick start: python main.py quick[/dim]")
 
 
 if __name__ == '__main__':
