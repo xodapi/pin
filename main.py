@@ -270,6 +270,72 @@ def cmd_export(args):
         raise
 
 
+def cmd_dashboard(args):
+    """Open web dashboard"""
+    from src.analytics import get_analytics
+    from src.dashboard import start_dashboard
+    
+    port = args.port or 8080
+    console.print(f"\n[bold blue]Starting Dashboard[/bold blue]\n")
+    
+    try:
+        analytics = get_analytics()
+        start_dashboard(analytics, port=port)
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+
+
+def cmd_evening(args):
+    """Generate evening report"""
+    from src.analytics import get_analytics
+    from src.daily_report import get_daily_report
+    
+    console.print(f"\n[bold blue]Evening Report[/bold blue]\n")
+    
+    try:
+        analytics = get_analytics()
+        reporter = get_daily_report()
+        report = reporter.generate_evening_report(analytics)
+        
+        # Display report
+        if 'error' in report:
+            console.print(f"[red]Error: {report['error']}[/red]")
+            return
+        
+        # Health status
+        health = report.get('health_status', {})
+        status_color = 'green' if health.get('overall') == 'OK' else 'yellow' if health.get('overall') == 'WARNING' else 'red'
+        console.print(f"[{status_color}]Health: {health.get('overall', 'Unknown')}[/{status_color}]")
+        
+        for check in health.get('checks', []):
+            icon = '[green]OK[/green]' if check.get('status') == 'OK' else '[yellow]![/yellow]' if check.get('status') == 'WARNING' else '[red]X[/red]'
+            msg = check.get('message', '')
+            console.print(f"  {icon} {check.get('name')}{': ' + msg if msg else ''}")
+        
+        # Alerts
+        alerts = report.get('alerts', [])
+        if alerts:
+            console.print("\n[bold]Alerts:[/bold]")
+            for alert in alerts:
+                color = 'yellow' if alert.get('type') == 'WARNING' else 'green' if alert.get('type') == 'SUCCESS' else 'blue'
+                console.print(f"  [{color}]{alert.get('message')}[/{color}]")
+        
+        # Comparison
+        vs_yesterday = report.get('vs_yesterday')
+        if vs_yesterday and 'no_previous_data' not in vs_yesterday:
+            console.print("\n[bold]vs Yesterday:[/bold]")
+            for key, data in vs_yesterday.items():
+                change = data.get('change_percent', 0)
+                arrow = '+' if change > 0 else ''
+                color = 'green' if change > 0 else 'red' if change < 0 else 'white'
+                console.print(f"  {key}: [{color}]{arrow}{change}%[/{color}]")
+        
+        console.print(f"\n[dim]Report saved to data/history/{report.get('date')}.json[/dim]")
+        
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='Pinterest Analytics CLI',
@@ -331,6 +397,15 @@ Examples:
     )
     export_parser.set_defaults(func=cmd_export)
     
+    # Dashboard command
+    dashboard_parser = subparsers.add_parser('dashboard', help='Open web dashboard')
+    dashboard_parser.add_argument('-p', '--port', type=int, default=8080, help='Port number')
+    dashboard_parser.set_defaults(func=cmd_dashboard)
+    
+    # Evening report command
+    report_parser = subparsers.add_parser('evening', help='Generate evening report')
+    report_parser.set_defaults(func=cmd_evening)
+    
     args = parser.parse_args()
     
     if args.command:
@@ -339,6 +414,7 @@ Examples:
         # Default: show help
         parser.print_help()
         console.print("\n[dim]Run 'python main.py test' to verify your setup[/dim]")
+        console.print("[dim]Run 'python main.py dashboard' to open web UI[/dim]")
 
 
 if __name__ == '__main__':
