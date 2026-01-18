@@ -446,6 +446,137 @@ def cmd_trends(args):
         traceback.print_exc()
 
 
+def cmd_backup(args):
+    """Backup all pins and boards locally"""
+    from src.backup import get_backup_manager
+    
+    include_images = args.images if hasattr(args, 'images') else False
+    
+    console.print(f"\n[bold blue]Creating Backup[/bold blue]")
+    if include_images:
+        console.print("[dim]Including images (this will take longer)[/dim]")
+    console.print("")
+    
+    try:
+        manager = get_backup_manager()
+        result = manager.create_backup(include_images=include_images)
+        
+        console.print(f"\n[green]Backup complete![/green]")
+        console.print(f"  Path: {result['path']}")
+        console.print(f"  Boards: {len(result['boards'])}")
+        console.print(f"  Pins: {len(result['pins'])}")
+        if include_images:
+            console.print(f"  Images: {result['images_downloaded']}")
+        
+        if result['errors']:
+            console.print(f"\n[yellow]Warnings:[/yellow]")
+            for error in result['errors']:
+                console.print(f"  {error}")
+                
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+
+
+def cmd_backup_list(args):
+    """List available backups"""
+    from src.backup import get_backup_manager
+    
+    console.print(f"\n[bold blue]Available Backups[/bold blue]\n")
+    
+    try:
+        manager = get_backup_manager()
+        backups = manager.list_backups()
+        
+        if not backups:
+            console.print("[yellow]No backups found[/yellow]")
+            console.print("[dim]Create one with: python main.py backup[/dim]")
+            return
+        
+        table = Table()
+        table.add_column("Date", style="cyan")
+        table.add_column("Pins", justify="right")
+        table.add_column("Boards", justify="right")
+        table.add_column("Images", justify="right")
+        table.add_column("Folder")
+        
+        for b in backups:
+            table.add_row(
+                b.get('created_at', '')[:19],
+                str(b.get('total_pins', 0)),
+                str(b.get('total_boards', 0)),
+                str(b.get('images_downloaded', 0)),
+                b.get('folder', ''),
+            )
+        
+        console.print(table)
+        
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+
+
+def cmd_quick(args):
+    """Quick 30-second status report"""
+    from src.quick_report import get_quick_report
+    
+    try:
+        reporter = get_quick_report()
+        report = reporter.generate()
+        
+        # Use formatted output
+        console.print(reporter.format_cli(report))
+        
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+
+
+def cmd_keywords(args):
+    """Analyze keywords for SEO"""
+    from src.keywords import get_keyword_analyzer
+    
+    console.print(f"\n[bold blue]Keyword Analysis[/bold blue]\n")
+    
+    try:
+        analyzer = get_keyword_analyzer()
+        
+        if args.check:
+            # Check specific keyword
+            result = analyzer.check_keyword(args.check)
+            
+            console.print(f"Keyword: [cyan]{result['keyword']}[/cyan]")
+            console.print(f"Coverage: {result['coverage']}% ({result['matching_pins']}/{result['total_pins']} pins)")
+            console.print(f"  In titles: {result['in_title']}")
+            console.print(f"  In descriptions: {result['in_description']}")
+            console.print(f"\n[dim]{result['recommendation']}[/dim]")
+        else:
+            # Full keyword analysis
+            console.print("[dim]Analyzing your pins...[/dim]\n")
+            result = analyzer.analyze_my_keywords()
+            
+            if 'error' in result:
+                console.print(f"[red]{result['error']}[/red]")
+                return
+            
+            console.print(f"Analyzed: {result['total_pins_analyzed']} pins")
+            console.print(f"Unique keywords: {result['unique_keywords']}")
+            
+            # Top keywords
+            console.print("\n[bold]Top Keywords:[/bold]")
+            for kw in result['top_keywords'][:15]:
+                bar = '█' * min(int(kw['frequency']), 20)
+                console.print(f"  {kw['keyword']}: {kw['count']} ({kw['frequency']}%) {bar}")
+            
+            # Recommendations
+            if result.get('recommendations'):
+                console.print("\n[bold]Recommendations:[/bold]")
+                for rec in result['recommendations']:
+                    console.print(f"  [yellow]>[/yellow] {rec}")
+        
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+        import traceback
+        traceback.print_exc()
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='Pinterest Analytics CLI',
@@ -453,15 +584,14 @@ def main():
         epilog="""
 Examples:
   python main.py test              # Test authentication
+  python main.py quick             # Quick 30-second status
   python main.py dashboard         # Open web dashboard
-  python main.py summary           # Show account summary
-  python main.py boards            # List all boards
-  python main.py pins              # List recent pins
+  python main.py backup            # Backup all pins locally
+  python main.py backup --images   # Backup with images
   python main.py cleanup           # Find underperforming pins
-  python main.py cleanup -d 90     # Pins older than 90 days
-  python main.py cleanup -e csv    # Export cleanup list to CSV
-  python main.py trends            # Find your niche
-  python main.py trends --full     # Full trends analysis
+  python main.py trends            # Find your niche  
+  python main.py keywords          # Analyze keywords for SEO
+  python main.py keywords -c art   # Check specific keyword
   python main.py evening           # Generate evening report
   python main.py export -t all     # Export all data to JSON
         """
@@ -532,6 +662,25 @@ Examples:
     trends_parser.add_argument('--full', action='store_true', help='Show full analysis with posting patterns')
     trends_parser.set_defaults(func=cmd_trends)
     
+    # Backup command
+    backup_parser = subparsers.add_parser('backup', help='Backup pins and boards locally')
+    backup_parser.add_argument('--images', action='store_true', help='Also download images')
+    backup_parser.add_argument('--list', action='store_true', help='List available backups')
+    backup_parser.set_defaults(func=cmd_backup)
+    
+    # Backup list subcommand
+    backup_list_parser = subparsers.add_parser('backups', help='List available backups')
+    backup_list_parser.set_defaults(func=cmd_backup_list)
+    
+    # Quick report command
+    quick_parser = subparsers.add_parser('quick', help='Quick 30-second status')
+    quick_parser.set_defaults(func=cmd_quick)
+    
+    # Keywords command
+    keywords_parser = subparsers.add_parser('keywords', help='Analyze keywords for SEO')
+    keywords_parser.add_argument('-c', '--check', type=str, help='Check specific keyword')
+    keywords_parser.set_defaults(func=cmd_keywords)
+    
     args = parser.parse_args()
     
     if args.command:
@@ -540,7 +689,7 @@ Examples:
         # Default: show help
         parser.print_help()
         console.print("\n[dim]Run 'python main.py test' to verify your setup[/dim]")
-        console.print("[dim]Run 'python main.py dashboard' to open web UI[/dim]")
+        console.print("[dim]Run 'python main.py quick' for a fast status check[/dim]")
 
 
 if __name__ == '__main__':

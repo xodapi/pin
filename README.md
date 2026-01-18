@@ -21,12 +21,14 @@
 
 | Feature | Description |
 |---------|-------------|
-| 📈 **Account Analytics** | View followers, pins, boards statistics |
-| 📋 **Board Insights** | Detailed metrics for each board |
-| 📌 **Pin Performance** | Track your pins engagement |
-| 📊 **Export Reports** | Export to JSON, CSV, Excel |
+| 🛡️ **Backup Protection** | Save all pins & images locally |
+| ⚡ **Quick Status** | 30-second health check |
+| 🗑️ **Smart Cleanup** | Find underperforming pins |
+| 📈 **Trends Analysis** | Find your niche |
+| 🔑 **SEO Keywords** | Optimize your content |
+| 🖥️ **Web Dashboard** | Beautiful charts & tables |
+| 📊 **Export Reports** | JSON, CSV, Excel formats |
 | 🔒 **Privacy First** | All data stored locally |
-| 🚀 **Fast & Lightweight** | CLI-based, no heavy dependencies |
 
 ## 🚀 Quick Start
 
@@ -76,23 +78,26 @@ pip install -r requirements.txt
 ### Usage
 
 ```bash
-# Test connection
-python main.py test
+# Quick status check (30 seconds)
+python main.py quick
 
-# View account info
-python main.py account
+# Open web dashboard
+python main.py dashboard
 
-# List all boards
-python main.py boards
+# Backup all your content
+python main.py backup
+python main.py backup --images  # with images
 
-# List pins
-python main.py pins
+# Find underperforming pins
+python main.py cleanup
+python main.py cleanup -e csv   # export list
 
-# Show summary
-python main.py summary
+# Analyze keywords for SEO
+python main.py keywords
+python main.py keywords -c "art"  # check specific
 
-# Export all data
-python main.py export -t all -f json
+# Find your niche
+python main.py trends
 ```
 
 ## 📖 Documentation
@@ -109,20 +114,23 @@ python main.py export -t all -f json
 ```
 main.py <command> [options]
 
-Commands:
-  test        Test Pinterest API connection
-  account     Display account information
-  boards      List all boards with stats
-  pins        List pins (use -n for limit, -b for board)
-  summary     Show account summary with top boards
-  analytics   Show detailed analytics (Business accounts)
-  export      Export data to file (-t type, -f format)
+Essential:
+  quick       Quick 30-second status check
+  dashboard   Open web dashboard with charts
+  backup      Backup pins & boards (--images for images)
 
-Options:
-  -n, --limit    Number of items to show
-  -b, --board    Board ID to filter by
-  -t, --type     Export type: summary, boards, pins, all
-  -f, --format   Output format: json, csv, excel
+Analytics:
+  cleanup     Find underperforming pins (-d days, -e export)
+  trends      Analyze trends and find your niche
+  keywords    Analyze keywords for SEO (-c to check specific)
+  evening     Generate daily evening report
+
+Data:
+  test        Test Pinterest API connection
+  summary     Show account summary
+  boards      List all boards
+  pins        List pins
+  export      Export to JSON/CSV/Excel
 ```
 
 ## 📁 Project Structure
