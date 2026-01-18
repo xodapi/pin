@@ -753,6 +753,127 @@ def cmd_math(args):
         traceback.print_exc()
 
 
+def cmd_top(args):
+    """Show top pins"""
+    from src.compare import get_top_pins
+    
+    limit = args.limit or 10
+    days = args.days
+    
+    console.print(f"\n[bold blue]Top {limit} Pins[/bold blue]")
+    if days:
+        console.print(f"[dim]Last {days} days[/dim]")
+    console.print("")
+    
+    try:
+        top = get_top_pins()
+        
+        if args.boards:
+            # Top by board
+            result = top.get_top_by_board(limit=limit)
+            
+            if 'error' in result:
+                console.print(f"[red]{result['error']}[/red]")
+                return
+            
+            table = Table(title=f"Top {limit} Boards")
+            table.add_column("#", style="cyan")
+            table.add_column("Board")
+            table.add_column("Pins", justify="right")
+            table.add_column("Latest Pin")
+            
+            for i, item in enumerate(result['results']):
+                table.add_row(
+                    str(i + 1),
+                    item['board_name'],
+                    str(item['total_pins']),
+                    item['top_pin']['title'][:30],
+                )
+            
+            console.print(table)
+        else:
+            # Top pins
+            result = top.get_top_pins(limit=limit, days=days)
+            
+            if 'error' in result:
+                console.print(f"[red]{result['error']}[/red]")
+                return
+            
+            table = Table(title=f"Top {limit} Pins")
+            table.add_column("#", style="cyan")
+            table.add_column("Title")
+            table.add_column("Created")
+            table.add_column("Link")
+            
+            for pin in result['pins']:
+                created = str(pin.get('created_at', ''))[:10]
+                link = pin.get('link', '')[:30] + '...' if pin.get('link') else '-'
+                table.add_row(
+                    str(pin['rank']),
+                    pin['title'] or 'Untitled',
+                    created,
+                    link,
+                )
+            
+            console.print(table)
+            console.print(f"\n[dim]Total analyzed: {result['total_analyzed']} pins[/dim]")
+        
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+
+
+def cmd_compare(args):
+    """Compare periods"""
+    from src.compare import get_period_compare
+    
+    console.print(f"\n[bold blue]Period Comparison[/bold blue]\n")
+    
+    try:
+        compare = get_period_compare()
+        
+        # Determine comparison type
+        if args.weeks:
+            result = compare.compare_weeks(weeks_back=args.weeks)
+            title = f"This week vs {args.weeks} week(s) ago"
+        elif args.months:
+            result = compare.compare_months(months_back=args.months)
+            title = f"This month vs {args.months} month(s) ago"
+        else:
+            days = args.days or 7
+            result = compare.compare_custom_days(days=days)
+            title = f"Last {days} days vs previous {days} days"
+        
+        console.print(f"[bold]{title}[/bold]\n")
+        
+        # Show comparison table
+        table = Table()
+        table.add_column("Metric")
+        table.add_column(result['period1']['name'], justify="right")
+        table.add_column(result['period2']['name'], justify="right")
+        table.add_column("Change", justify="right")
+        
+        for metric, data in result['changes'].items():
+            trend_icon = '↑' if data['trend'] == 'up' else '↓' if data['trend'] == 'down' else '→'
+            color = 'green' if data['trend'] == 'up' else 'red' if data['trend'] == 'down' else 'white'
+            
+            change_str = f"[{color}]{trend_icon} {data['change_percent']:+}%[/{color}]"
+            
+            table.add_row(
+                metric.replace('_', ' ').title(),
+                str(data['old']),
+                str(data['new']),
+                change_str,
+            )
+        
+        console.print(table)
+        console.print(f"\n[cyan]{result['summary']}[/cyan]")
+        
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+        import traceback
+        traceback.print_exc()
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='Pinterest Analytics CLI',
@@ -876,6 +997,20 @@ Examples:
     math_parser.add_argument('--pins', action='store_true', help='Analyze pins trends')
     math_parser.add_argument('-d', '--days', type=int, default=30, help='Analysis period in days')
     math_parser.set_defaults(func=cmd_math)
+    
+    # Top pins command
+    top_parser = subparsers.add_parser('top', help='Show top pins')
+    top_parser.add_argument('-n', '--limit', type=int, default=10, help='Number of pins to show')
+    top_parser.add_argument('-d', '--days', type=int, help='Filter to last N days')
+    top_parser.add_argument('--boards', action='store_true', help='Show top boards instead')
+    top_parser.set_defaults(func=cmd_top)
+    
+    # Compare periods command
+    compare_parser = subparsers.add_parser('compare', help='Compare periods')
+    compare_parser.add_argument('-d', '--days', type=int, help='Compare last N days vs previous N days')
+    compare_parser.add_argument('-w', '--weeks', type=int, help='Compare this week vs N weeks ago')
+    compare_parser.add_argument('-m', '--months', type=int, help='Compare this month vs N months ago')
+    compare_parser.set_defaults(func=cmd_compare)
     
     args = parser.parse_args()
     
