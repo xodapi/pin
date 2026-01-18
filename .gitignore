@@ -1,12 +1,30 @@
-# Environment
+# Environment & Secrets (SECURITY CRITICAL)
 .env
+.env.*
+*.env
+secrets/
+credentials/
+*.key
+*.pem
+*.p12
+
+# Python
 .venv/
 venv/
 __pycache__/
 *.pyc
+*.pyo
+
+# Data (contains personal Pinterest data)
+data/
+backups/
+cache/
+*.json
+!package.json
 
 # Reports
 reports/
+exports/
 *.csv
 *.xlsx
 

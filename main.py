@@ -1053,6 +1053,40 @@ def cmd_watchlist(args):
         traceback.print_exc()
 
 
+def cmd_security(args):
+    """Check API token security"""
+    from src.security import get_security_manager
+    
+    console.print(f"\n[bold blue]Security Check[/bold blue]\n")
+    
+    try:
+        manager = get_security_manager()
+        results = manager.check_env_security()
+        
+        if results['secure']:
+            console.print("[green]✅ Security Status: GOOD[/green]\n")
+        else:
+            console.print("[red]⚠️  Security Status: ISSUES FOUND[/red]\n")
+        
+        console.print("[bold]Checks:[/bold]")
+        for issue in results['issues']:
+            icon = "✓" if "passed" in issue.lower() else "✗"
+            color = "green" if "passed" in issue.lower() else "red"
+            console.print(f"  [{color}]{icon}[/{color}] {issue}")
+        
+        if results['recommendations']:
+            console.print("\n[bold]Recommendations:[/bold]")
+            for rec in results['recommendations']:
+                console.print(f"  [yellow]→[/yellow] {rec}")
+        
+        console.print("\n[bold]Security Tips:[/bold]")
+        for tip in manager.get_security_tips()[:5]:
+            console.print(f"  • {tip}")
+        
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='Pinterest Analytics CLI',
@@ -1204,6 +1238,10 @@ Examples:
     watchlist_parser.add_argument('--note', type=str, help='Note for tracked item')
     watchlist_parser.add_argument('--description', type=str, help='Watchlist description')
     watchlist_parser.set_defaults(func=cmd_watchlist)
+    
+    # Security command
+    security_parser = subparsers.add_parser('security', help='Check API token security')
+    security_parser.set_defaults(func=cmd_security)
     
     args = parser.parse_args()
     
