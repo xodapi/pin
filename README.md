@@ -1,6 +1,8 @@
 <div align="center">
 
-# 📊 Pinterest Analytics
+<img src="docs/assets/logo.png" alt="Pinterest Analytics Logo" width="120">
+
+# Pinterest Analytics
 
 [![Python](https://img.shields.io/badge/Python-3.8+-blue.svg?logo=python&logoColor=white)](https://python.org)
 [![Pinterest API](https://img.shields.io/badge/Pinterest-API%20v5-red.svg?logo=pinterest)](https://developers.pinterest.com)
@@ -9,11 +11,9 @@
 
 **Powerful analytics tool for your Pinterest account**
 
+*Built with [python-pinterest](https://github.com/sns-sdks/python-pinterest) SDK*
+
 [English](#features) • [Русский](docs/README.ru.md)
-
----
-
-<img src="docs/assets/demo.png" alt="Demo" width="600">
 
 </div>
 
