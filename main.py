@@ -336,6 +336,116 @@ def cmd_evening(args):
         console.print(f"[red]Error: {e}[/red]")
 
 
+def cmd_cleanup(args):
+    """Find underperforming pins for cleanup"""
+    from src.bulk_analyzer import get_bulk_analyzer
+    
+    days = args.days or 180
+    min_saves = args.min_saves or 1000
+    
+    console.print(f"\n[bold blue]Cleanup Analysis[/bold blue]")
+    console.print(f"[dim]Finding pins older than {days} days[/dim]\n")
+    
+    try:
+        analyzer = get_bulk_analyzer()
+        result = analyzer.find_underperforming(min_saves=min_saves, days=days)
+        
+        summary = result.get('summary', {})
+        
+        # Display summary
+        table = Table(title="Cleanup Summary")
+        table.add_column("Metric", style="cyan")
+        table.add_column("Value", justify="right")
+        
+        table.add_row("Total Pins", f"{summary.get('total_pins', 0):,}")
+        table.add_row("Old Pins (for cleanup)", f"[yellow]{summary.get('old_pins', 0):,}[/yellow]")
+        table.add_row("New Pins (keep)", f"[green]{summary.get('new_pins', 0):,}[/green]")
+        table.add_row("Percentage to cleanup", f"{summary.get('percentage_old', 0)}%")
+        
+        console.print(table)
+        
+        # Show by board
+        by_board = result.get('by_board', {})
+        if by_board:
+            console.print("\n[bold]Old pins by board:[/bold]")
+            sorted_boards = sorted(by_board.items(), key=lambda x: x[1], reverse=True)
+            for board, count in sorted_boards[:10]:
+                console.print(f"  {board}: {count} pins")
+        
+        # Export option
+        if result.get('pins'):
+            console.print(f"\n[dim]Found {len(result['pins'])} pins for potential cleanup[/dim]")
+            
+            if args.export:
+                filepath = analyzer.export_cleanup_list(
+                    result['pins'],
+                    format=args.export
+                )
+                console.print(f"[green]Exported to:[/green] {filepath}")
+        
+        console.print(f"\n[dim]Note: {result.get('note', '')}[/dim]")
+        
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+
+
+def cmd_trends(args):
+    """Analyze trends and find what's working"""
+    from src.trends_analyzer import get_trends_analyzer
+    
+    console.print(f"\n[bold blue]Trends Analysis[/bold blue]\n")
+    
+    try:
+        analyzer = get_trends_analyzer()
+        
+        # Boards performance
+        console.print("[bold]Analyzing boards...[/bold]")
+        boards = analyzer.analyze_boards_performance()
+        
+        if 'summary' in boards:
+            s = boards['summary']
+            console.print(f"  Total: {s.get('total_pins', 0):,} pins in {s.get('total_boards', 0)} boards")
+            console.print(f"  Followers: {s.get('total_followers', 0):,}")
+        
+        if boards.get('most_efficient'):
+            console.print("\n[bold]Most Efficient Boards:[/bold] (followers per pin)")
+            for b in boards['most_efficient'][:5]:
+                console.print(f"  {b.get('name')}: {b.get('efficiency', 0):.1f} ({b.get('pins')} pins, {b.get('followers')} followers)")
+        
+        if boards.get('recommendations'):
+            console.print("\n[bold]Recommendations:[/bold]")
+            for rec in boards['recommendations']:
+                console.print(f"  [yellow]>[/yellow] {rec}")
+        
+        # Niche
+        console.print("\n[bold]Analyzing niche...[/bold]")
+        niche = analyzer.find_niche()
+        
+        if niche.get('top_board_niche'):
+            console.print(f"\n[green]Your Niche:[/green] {niche.get('top_board_niche')}")
+        
+        if niche.get('top_keywords'):
+            console.print(f"[green]Top Keywords:[/green] {', '.join(niche.get('top_keywords', []))}")
+        
+        if niche.get('recommendation'):
+            console.print(f"\n[cyan]{niche.get('recommendation')}[/cyan]")
+        
+        # Posting patterns
+        if args.full:
+            console.print("\n[bold]Analyzing posting patterns...[/bold]")
+            patterns = analyzer.analyze_posting_patterns()
+            
+            if patterns.get('best_days'):
+                console.print(f"  Best days: {', '.join([d['day'] for d in patterns['best_days']])}")
+            if patterns.get('best_hours'):
+                console.print(f"  Best hours: {', '.join([str(h['hour']) + ':00' for h in patterns['best_hours'][:3]])}")
+        
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+        import traceback
+        traceback.print_exc()
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='Pinterest Analytics CLI',
@@ -343,12 +453,16 @@ def main():
         epilog="""
 Examples:
   python main.py test              # Test authentication
-  python main.py account           # Show account info
+  python main.py dashboard         # Open web dashboard
+  python main.py summary           # Show account summary
   python main.py boards            # List all boards
   python main.py pins              # List recent pins
-  python main.py pins -b BOARD_ID  # List pins from board
-  python main.py summary           # Show account summary
-  python main.py analytics         # Show analytics (Business only)
+  python main.py cleanup           # Find underperforming pins
+  python main.py cleanup -d 90     # Pins older than 90 days
+  python main.py cleanup -e csv    # Export cleanup list to CSV
+  python main.py trends            # Find your niche
+  python main.py trends --full     # Full trends analysis
+  python main.py evening           # Generate evening report
   python main.py export -t all     # Export all data to JSON
         """
     )
@@ -405,6 +519,18 @@ Examples:
     # Evening report command
     report_parser = subparsers.add_parser('evening', help='Generate evening report')
     report_parser.set_defaults(func=cmd_evening)
+    
+    # Cleanup command
+    cleanup_parser = subparsers.add_parser('cleanup', help='Find underperforming pins')
+    cleanup_parser.add_argument('-d', '--days', type=int, default=180, help='Pins older than N days')
+    cleanup_parser.add_argument('-s', '--min-saves', type=int, default=1000, help='Minimum saves threshold')
+    cleanup_parser.add_argument('-e', '--export', choices=['json', 'csv', 'txt'], help='Export list to file')
+    cleanup_parser.set_defaults(func=cmd_cleanup)
+    
+    # Trends command
+    trends_parser = subparsers.add_parser('trends', help='Analyze trends and find niche')
+    trends_parser.add_argument('--full', action='store_true', help='Show full analysis with posting patterns')
+    trends_parser.set_defaults(func=cmd_trends)
     
     args = parser.parse_args()
     
